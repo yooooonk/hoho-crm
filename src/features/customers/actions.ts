@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/db/prisma";
 
 export async function createCustomer(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -24,5 +24,5 @@ export async function createCustomer(formData: FormData) {
     },
   });
 
-  revalidatePath("/");
+  revalidatePath("/customers");
 }
