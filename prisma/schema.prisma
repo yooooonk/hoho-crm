@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 고객
+model Customer {
+  id               String   @id @default(cuid())
+  name             String
+  phone            String   @unique
+  birthDate        DateTime?
+  constitutionTag  String? // 체질 태그 (예: 태음인, 소음인, 소양인, 태양인)
+  memo             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  consultations Consultation[]
+  appointments  Appointment[]
+  payments      Payment[]
+}
+
+// 상담/처방
+model Consultation {
+  id                String   @id @default(cuid())
+  customerId        String
+  visitedAt         DateTime @default(now())
+  symptomNote       String? // 증상 메모
+  prescriptionNote  String? // 처방 메모
+  durationDays      Int? // 복용 기간(일)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  customer     Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  herbItems    ConsultationHerbItem[]
+  payments     Payment[]
+
+  @@index([customerId])
+}
+
+// 상담-한약재 중간 테이블 (사용량 포함)
+model ConsultationHerbItem {
+  id             String @id @default(cuid())
+  consultationId String
+  herbItemId     String
+  quantity       Float // 사용량
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  herbItem     HerbItem     @relation(fields: [herbItemId], references: [id], onDelete: Restrict)
+
+  @@index([consultationId])
+  @@index([herbItemId])
+}
+
+// 한약재/재고 (로트 단위 관리 — 같은 약재라도 입고 시기가 다르면 별도 행)
+model HerbItem {
+  id            String    @id @default(cuid())
+  name          String // 약재명
+  origin        String? // 원산지
+  receivedAt    DateTime // 입고일
+  expiresAt     DateTime? // 유효기간
+  receivedQty   Float // 입고량
+  currentQty    Float // 현재고량
+  reorderPoint  Float? // 재주문 기준수량
+  unit          String // 단위 (g, kg 등)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  consultations ConsultationHerbItem[]
+
+  @@index([name])
+}
+
+enum AppointmentStatus {
+  scheduled
+  completed
+  no_show
+  canceled
+}
+
+// 예약
+model Appointment {
+  id          String            @id @default(cuid())
+  customerId  String
+  scheduledAt DateTime
+  purpose     String? // 방문 목적
+  status      AppointmentStatus @default(scheduled)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([scheduledAt])
+}
+
+// 결제
+model Payment {
+  id                 String    @id @default(cuid())
+  customerId         String
+  consultationId     String?
+  paidAt             DateTime  @default(now())
+  amount             Int // 원 단위
+  method             String // 현금, 카드, 계좌이체 등
+  expectedRunOutAt   DateTime? // 예상 소진일 (재구매 알림용)
+  reminderSentAt     DateTime?
+  createdAt          DateTime  @default(now())
+
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([consultationId])
+  @@index([expectedRunOutAt])
+}
