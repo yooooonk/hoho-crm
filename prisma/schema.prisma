@@ -15,8 +15,10 @@ datasource db {
 model Customer {
   id               String   @id @default(cuid())
   name             String
+  gender           String? // 성별 (예: 남, 여, 기타)
   phone            String   @unique
   birthDate        DateTime?
+  address          String? // 주소
   constitutionTag  String? // 체질 태그 (예: 태음인, 소음인, 소양인, 태양인)
   memo             String?
   createdAt        DateTime @default(now())
