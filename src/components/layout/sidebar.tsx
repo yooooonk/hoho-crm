@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 type NavItem = {
   href: string;
   label: string;
+  shortLabel: string;
   icon: ReactNode;
 };
 
@@ -22,6 +23,7 @@ const navItems: NavItem[] = [
   {
     href: "/",
     label: "대시보드",
+    shortLabel: "홈",
     icon: (
       <svg {...iconProps}>
         <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
@@ -32,18 +34,9 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    href: "/appointments",
-    label: "예약관리",
-    icon: (
-      <svg {...iconProps}>
-        <rect x="3.5" y="4.5" width="17" height="16" rx="2" />
-        <path strokeLinecap="round" d="M3.5 9.5h17M8 3v3M16 3v3" />
-      </svg>
-    ),
-  },
-  {
     href: "/customers",
     label: "환자관리",
+    shortLabel: "고객",
     icon: (
       <svg {...iconProps}>
         <circle cx="9" cy="8" r="3.25" />
@@ -53,8 +46,20 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: "/appointments",
+    label: "예약관리",
+    shortLabel: "예약",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3.5" y="4.5" width="17" height="16" rx="2" />
+        <path strokeLinecap="round" d="M3.5 9.5h17M8 3v3M16 3v3" />
+      </svg>
+    ),
+  },
+  {
     href: "/inventory",
     label: "약재주문내역",
+    shortLabel: "주문",
     icon: (
       <svg {...iconProps}>
         <path d="M3.5 8 12 3.5 20.5 8v8L12 20.5 3.5 16z" strokeLinejoin="round" />
@@ -65,6 +70,7 @@ const navItems: NavItem[] = [
   {
     href: "/payments",
     label: "매출관리",
+    shortLabel: "매출",
     icon: (
       <svg {...iconProps}>
         <circle cx="12" cy="12" r="8.5" />
@@ -78,17 +84,12 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white px-4 py-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mb-8 flex items-center gap-2 px-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-white">
-          호
-        </span>
-        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          호호 한약국
-        </span>
+    <aside className="flex w-20 shrink-0 flex-col items-center border-r border-zinc-200 bg-white py-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mb-6 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-white">
+        호
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1">
+      <nav className="flex flex-1 flex-col items-center gap-2">
         {navItems.map((item) => {
           const isActive =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -97,14 +98,23 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              title={item.label}
+              className={`flex w-16 flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors ${
                 isActive
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
-              {item.icon}
-              {item.label}
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                  isActive
+                    ? "bg-emerald-500 text-white"
+                    : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                }`}
+              >
+                {item.icon}
+              </span>
+              {item.shortLabel}
             </Link>
           );
         })}
