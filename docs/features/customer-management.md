@@ -10,11 +10,14 @@
   - 고객 목록 검색(성명/연락처/생년월일), 목록에서 고객 선택
   - 고객 등록/수정/삭제 (Server Actions)
   - 고객 상세 패널: 보기/수정 모드 전환, 필드 단위 인라인 에러 표시
+  - 생년월일 입력 시 만 나이·띠 자동 표시, 연락처 입력 시 하이픈 자동 삽입
+  - 요약 바: 예약 건수·상담 건수·누적 판매 금액
   - 상담내역(과거 Consultation 기록 목록, 조회 전용)
 - 포함 안 함 (Non-goals):
   - 고객 등급/그룹 분류, 담당자 배정, 사용자 정의 항목 — 필요성이 불명확해 제외 (재도입 시 활동 이력 기반 자동 분류를 우선 검토)
-  - 예약/판매/쿠폰/포인트/메시지 요약 — 각 기능이 실제로 만들어질 때 해당 도메인 페이지에서 다룬다
-  - 상담 등록/수정 UI (상담내역은 현재 조회 전용, 등록은 추후 상담 기능에서 구현)
+  - 쿠폰/포인트/메시지 요약 — 해당 기능이 실제로 만들어질 때 다룬다 (예약/판매 요약은 이번에 추가함)
+  - 상담/예약/결제 등록·수정 UI — 요약 바는 Appointment/Payment/Consultation 테이블을 읽기만 하며, 이 테이블에 데이터를 넣는 화면은 각자의 기능에서 별도로 구현한다
+  - 카드 단말기(포스기) 자동 연동 — 결제 금액은 현재 수동 입력을 전제로 한다. 추후 PG/VAN사 API·웹훅이 있는 단말기(예: 토스페이먼츠)를 쓰면 자동화할 수 있음
 
 ## 데이터 모델
 
@@ -40,7 +43,7 @@
 - 타입: `src/features/customers/types.ts` — `CustomerFormState`(`error`, `field`, `values`)와 `initialCustomerFormState`. `"use server"` 파일은 async 함수만 export할 수 있어서 상수/타입은 별도 파일로 분리했다.
 - Queries: `src/features/customers/queries.ts`
   - `getCustomers(search?)`: 전체 고객을 최근 등록순으로 조회 후, 검색어가 있으면 메모리에서 필터링한다. 성명/연락처는 부분 일치, 생년월일은 구분자(`-`, `.`)를 무시하고 숫자만 비교해서 부분 일치시킨다 (Prisma로 DateTime 컬럼에 `contains`를 직접 걸 수 없어서 이렇게 처리). 목록의 "최종방문일" 컬럼을 위해 가장 최근 상담(Consultation) 1건도 함께 조회한다.
-  - `getCustomerDetail(id)`: 고객 상세 + 상담내역(Consultation) 포함 조회
+  - `getCustomerDetail(id)`: 고객 상세 + 상담내역(Consultation) 포함 조회에, 요약 바에 쓸 `appointmentCount`(`Appointment` `_count`) · `consultationCount`(조회한 상담 배열 길이) · `totalPaidAmount`(`Payment.aggregate`로 해당 고객의 `amount` 합계, 결제 내역 없으면 0)를 계산해 붙여서 반환한다. 판매 금액을 `Consultation`에 필드로 두지 않고 별도 `Payment` 모델을 합산하는 이유는, 정액권처럼 결제 1건이 여러 상담에 걸쳐 소진되는 경우를 표현하기 위해서다.
 
 ## 화면/UI
 
@@ -53,10 +56,13 @@
     - 신규 고객 등록 화면(`customer === null`)은 처음부터 수정 모드로 시작.
     - 고객을 전환하면 `key={customer.id}`로 `CustomerDetailPanel` 자체가 리마운트되어 상태가 깨끗하게 초기화된다 (부모: `src/app/customers/page.tsx`).
     - 검증 실패로 폼이 다시 그려질 때, React가 `<form action>`의 미제어(uncontrolled) 입력값을 자동으로 초기화해버리는 문제가 있어 — 제출이 끝날 때마다(`pending` true→false 전환) `resetToken`을 올려 입력 필드 그룹을 리마운트하고, 서버가 돌려준 `state.values`(방금 제출했던 원본 문자열)를 `defaultValue`로 다시 채워 넣는 방식으로 우회했다.
-  - `birth-date-input.tsx`: 생년월일 입력 — 숫자만 이어 입력하면(`19920512`) 자동으로 `1992-05-12` 형태로 하이픈이 붙는 클라이언트 컴포넌트 (네이티브 `<input type="date">`의 연/월/일 분리 입력 UX 대신 사용)
+  - `birth-date-input.tsx`: 생년월일 입력 — 숫자만 이어 입력하면(`19920512`) 자동으로 `1992-05-12` 형태로 하이픈이 붙는 클라이언트 컴포넌트 (네이티브 `<input type="date">`의 연/월/일 분리 입력 UX 대신 사용). 8자리가 다 채워지고 실제로 존재하는 날짜면 입력칸 옆에 `formatBirthInfo`로 계산한 "만 X세 · O띠"를 바로 보여준다.
+  - `phone-input.tsx`: 연락처 입력 — 숫자만 입력해도 `010-0000-0000`(3-4-4자리) 형태로 자동으로 하이픈이 붙는 클라이언트 컴포넌트. `birth-date-input.tsx`와 동일한 패턴(내부 상태에 숫자만 보관하고 표시만 하이픈 포맷으로 변환).
+  - `customer-summary-bar.tsx`: 상세 패널 하단에 예약 건수·상담 건수·누적 판매 금액 3칸을 보여주는 요약 바. `getCustomerDetail`이 계산해 온 값을 그대로 표시만 한다.
   - `consultation-history.tsx`: 상담내역을 방문일 역순으로 보여주는 목록 (조회 전용)
   - `delete-customer-button.tsx`: 삭제 확인 다이얼로그를 띄우는 클라이언트 컴포넌트. `children`을 넘기면 그 내용을(예: "삭제" 글자) 아이콘 대신 렌더링한다.
 - 날짜 표시 포맷: `src/lib/format.ts`의 `formatDate`가 `YYYY.MM.DD`(점 구분) 형식으로 통일해서 보여준다. 생년월일 입력 필드 자체의 내부 값(`YYYY-MM-DD`, 서버 검증용)과는 별개다.
+- 만 나이·띠 계산: `src/lib/birth-info.ts`의 `getKoreanAge`(생일 경과 여부를 반영한 한국식 만 나이)와 `getZodiacSign`(2020년=쥐띠를 기준으로 한 12간지 계산). `birth-date-input.tsx`(입력 중 실시간)와 `customer-detail-panel.tsx`(보기 모드) 양쪽에서 같은 함수를 사용한다.
 
 ## 에러/예외 처리
 
@@ -79,6 +85,9 @@
 - [x] 중복 연락처로 등록/수정 시 에러 메시지 노출
 - [x] 상담내역이 없는 고객은 "상담 이력이 없습니다." 안내 표시
 - [x] 목록의 최종방문일이 상담 이력이 있으면 최근 상담일, 없으면 등록일을 보여줌
+- [x] 생년월일을 8자리 다 입력하면 만 나이·띠가 옆에 표시되고, 존재하지 않는 날짜(예: 20240231)는 무시됨
+- [x] 연락처를 숫자만 입력해도 저장 시 하이픈 포함 형식으로 저장됨
+- [x] 예약/상담/결제 데이터가 아직 없는 고객은 요약 바가 0건/0원으로 표시됨
 
 ## 관련 문서/이슈
 
